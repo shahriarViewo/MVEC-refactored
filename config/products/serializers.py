@@ -1,17 +1,47 @@
 from rest_framework import serializers
-from .models import Product, ProductVariant, ProductImage, ProductVideo, ProductSEOConfig, DownloadableProduct
+from django.utils.text import slugify
+from .models import Product, ProductVariant, ProductImage, ProductVideo, ProductSEOConfig
+# Critical Imports: We need the Model for validation and the Serializer for display
+from catalog.models import VariationOption
 from catalog.serializers import CategorySerializer, BrandSerializer, VariationOptionSerializer
 from accounts.serializers import ImageSerializer
+from accounts.models import Image 
 
 # -----------------------------
 # Media Serializers
 # -----------------------------
+# accounts/models.py must be imported to create the Image
+
 class ProductImageSerializer(serializers.ModelSerializer):
     image_details = ImageSerializer(source='image', read_only=True)
     
+    # NEW: Accept a raw file upload (Write Only)
+    file_upload = serializers.ImageField(write_only=True, required=True)
+    
+    # Make the original ID field read-only (it will be auto-filled)
+    image = serializers.PrimaryKeyRelatedField(read_only=True)
+
     class Meta:
         model = ProductImage
-        fields = ['id', 'image', 'image_details']
+        fields = ['id', 'image', 'file_upload', 'variant', 'image_details']
+
+    def create(self, validated_data):
+        # 1. Pop the file from the data
+        file_obj = validated_data.pop('file_upload')
+        
+        # 2. Create the Base Image (using correct fields from accounts/models.py)
+        # Note: Your Image model does NOT have a 'user' field, so we omit it.
+        new_image = Image.objects.create(
+            file=file_obj,
+            image_name=file_obj.name 
+        )
+
+        # 3. Create the ProductImage link
+        product_image = ProductImage.objects.create(
+            image=new_image,
+            **validated_data
+        )
+        return product_image
 
 class ProductVideoSerializer(serializers.ModelSerializer):
     class Meta:
@@ -19,20 +49,24 @@ class ProductVideoSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 # -----------------------------
-# Variant Serializer
+# Variant Serializer (THE FIX IS HERE)
 # -----------------------------
 class ProductVariantSerializer(serializers.ModelSerializer):
-    # Read: Full nested details of options (e.g., Color: Red)
-    variation_options_details = VariationOptionSerializer(source='variation_options', many=True, read_only=True)
+    # 1. READ ONLY: 'attributes' shows the rich data (Name: Red, Hex: #FF0000)
+    attributes = VariationOptionSerializer(source='variation_options', many=True, read_only=True)
     
-    # Write: List of IDs
-    variation_options = serializers.PrimaryKeyRelatedField(
-        many=True, read_only=True # Usually set via View logic or separate write serializer
-    ) 
+    # 2. WRITE ONLY: 'variation_option_ids' accepts the list of IDs (e.g., [1])
+    # We use source='variation_options' so it maps automatically to the model field
+    variation_option_ids = serializers.PrimaryKeyRelatedField(
+        queryset=VariationOption.objects.all(),
+        source='variation_options',
+        many=True,
+        write_only=True
+    )
 
     class Meta:
         model = ProductVariant
-        fields = ['id', 'sku', 'price', 'stock_qty', 'variation_options', 'variation_options_details']
+        fields = ['id', 'sku', 'price', 'stock_qty', 'attributes', 'variation_option_ids']
 
 
 # -----------------------------
@@ -48,25 +82,46 @@ class ProductSEOConfigSerializer(serializers.ModelSerializer):
 # Main Product Serializer
 # -----------------------------
 class ProductSerializer(serializers.ModelSerializer):
-    # Nested Read Fields
     category_details = CategorySerializer(source='category', read_only=True)
     brand_details = BrandSerializer(source='brand', read_only=True)
     
-    # Nested Relations (Many-to-Many or Reverse FK)
     variants = ProductVariantSerializer(many=True, read_only=True)
     images = ProductImageSerializer(many=True, read_only=True)
-    seo_config = ProductSEOConfigSerializer(read_only=True)
+    
+    price_range = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
         fields = [
-            'id', 'vendor_shop', 'product_name', 'slug', 'short_description', 'description',
+            'id', 'product_name', 'slug', 'short_description', 'description',
+            'status', 'featured', 'trending',
             'category', 'category_details',
             'brand', 'brand_details',
-            'trending', 'featured', 'status', 'is_virtual',
-            'weight_name', 'weight_value', 'length', 'width', 'height',
-            'variants', 'images', 'seo_config',
+            'weight_name', 'weight_value',
+            'price_range', 
+            'variants', 
+            'images',
             'created_at', 'updated_at'
         ]
-        read_only_fields = ['vendor_shop', 'created_at', 'updated_at'] 
-        # vendor_shop is usually set automatically in the view based on the logged-in user
+        read_only_fields = ['vendor_shop', 'status', 'created_at', 'updated_at', 'slug']
+
+    def get_price_range(self, obj):
+        variants = obj.variants.all()
+        if not variants:
+            return "N/A"
+        prices = [v.price for v in variants]
+        min_p = min(prices)
+        max_p = max(prices)
+        if min_p == max_p:
+            return f"{min_p}"
+        return f"{min_p} - {max_p}"
+
+    def create(self, validated_data):
+        if 'slug' not in validated_data:
+            validated_data['slug'] = slugify(validated_data['product_name'])
+            original_slug = validated_data['slug']
+            counter = 1
+            while Product.objects.filter(slug=validated_data['slug']).exists():
+                validated_data['slug'] = f"{original_slug}-{counter}"
+                counter += 1
+        return super().create(validated_data)

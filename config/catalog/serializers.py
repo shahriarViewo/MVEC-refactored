@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Category, Brand, Variation, VariationOption
+from accounts.serializers import ImageSerializer
 
 # -----------------------------
 # Category Serializer
@@ -13,8 +14,6 @@ class CategorySerializer(serializers.ModelSerializer):
         fields = ['id', 'category_name', 'icon', 'parent_category', 'subcategories']
 
     def get_subcategories(self, obj):
-        # Simple recursion check to avoid infinite depth if data is bad, 
-        # or just standard serialization of children
         children = obj.subcategories.all()
         return CategorySerializer(children, many=True).data
 
@@ -29,12 +28,16 @@ class BrandSerializer(serializers.ModelSerializer):
 
 
 # -----------------------------
-# Variation Option Serializer
+# Variation Option Serializer (THE MISSING PART)
 # -----------------------------
 class VariationOptionSerializer(serializers.ModelSerializer):
+    # Shows the full image object if a pattern is uploaded
+    pattern_image_details = ImageSerializer(source='pattern_image', read_only=True)
+
     class Meta:
         model = VariationOption
-        fields = ['id', 'value', 'variation']
+        # Added color_code and pattern_image
+        fields = ['id', 'value', 'color_code', 'pattern_image', 'pattern_image_details']
 
 
 # -----------------------------
@@ -46,4 +49,5 @@ class VariationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Variation
-        fields = ['id', 'name', 'is_global', 'vendor_shop', 'options']
+        # Added display_mode
+        fields = ['id', 'name', 'is_global', 'display_mode', 'vendor_shop', 'options']

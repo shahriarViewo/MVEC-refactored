@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from .models import UserProfile, Address, Image, VendorStaff
-
+from vendors.models import VendorShop
 User = get_user_model()
 
 # -----------------------------
@@ -83,24 +83,13 @@ class VendorStaffSerializer(serializers.ModelSerializer):
         queryset=User.objects.all(), source='user', write_only=True
     )
     
-    # We use PrimaryKeyRelatedField for the shop to handle the relationship via ID
+    # FIX: We must provide the queryset directly
     vendor_shop_id = serializers.PrimaryKeyRelatedField(
-        queryset=None, # Needs to be set dynamically in view or imports if possible, 
-                       # but standard practice for decoupled apps is checking ID validity in view or loosely here.
-                       # For strict typing, we would import VendorShop, but that causes circular import.
-                       # We will set queryset in the __init__ or handle at View level.
-        read_only=False
+        queryset=VendorShop.objects.all(), 
+        source='vendor_shop',
+        write_only=True
     )
 
     class Meta:
         model = VendorStaff
         fields = ['id', 'vendor_shop_id', 'user_details', 'user_id', 'role', 'created_at', 'updated_at']
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Dynamic import to break circular dependency in serializers
-        try:
-            from vendors.models import VendorShop
-            self.fields['vendor_shop_id'].queryset = VendorShop.objects.all()
-        except ImportError:
-            pass
