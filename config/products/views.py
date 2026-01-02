@@ -6,6 +6,8 @@ from django.db.models import Q
 from .models import Product, ProductVariant, ProductImage
 from .serializers import ProductSerializer, ProductVariantSerializer, ProductImageSerializer
 from .permissions import IsVendorOwner
+from .models import ProductVideo
+from .serializers import ProductVideoSerializer
 
 class ProductViewSet(viewsets.ModelViewSet):
     """
@@ -81,5 +83,28 @@ class ProductImageViewSet(viewsets.ModelViewSet):
         
         if product.vendor_shop != self.request.user.vendor_shop:
              raise permissions.PermissionDenied("You cannot upload images to another vendor's product.")
+        
+        serializer.save(product_id=product_id)
+
+
+
+class ProductVideoViewSet(viewsets.ModelViewSet):
+    """
+    API for uploading Product Videos.
+    """
+    serializer_class = ProductVideoSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [parsers.MultiPartParser, parsers.FormParser]
+
+    def get_queryset(self):
+        return ProductVideo.objects.filter(product_id=self.kwargs['product_pk'])
+
+    def perform_create(self, serializer):
+        product_id = self.kwargs['product_pk']
+        product = Product.objects.get(pk=product_id)
+        
+        # Check ownership
+        if product.vendor_shop != self.request.user.vendor_shop:
+             raise permissions.PermissionDenied("You cannot upload videos to another vendor's product.")
         
         serializer.save(product_id=product_id)

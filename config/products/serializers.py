@@ -43,11 +43,25 @@ class ProductImageSerializer(serializers.ModelSerializer):
         )
         return product_image
 
+# class ProductVideoSerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model = ProductVideo
+#         fields = '__all__'
+# ... keep your existing imports ...
+
 class ProductVideoSerializer(serializers.ModelSerializer):
+    # Read-only field to show the URL
+    video_url = serializers.FileField(source='video_file', read_only=True)
+    
+    # Write-only field for the upload
+    file_upload = serializers.FileField(source='video_file', write_only=True)
+
     class Meta:
         model = ProductVideo
-        fields = '__all__'
+        fields = ['id', 'video_url', 'file_upload', 'title', 'description', 'created_at']
+        read_only_fields = ['product', 'created_at']
 
+# ... keep the rest of the file ...
 # -----------------------------
 # Variant Serializer (THE FIX IS HERE)
 # -----------------------------
