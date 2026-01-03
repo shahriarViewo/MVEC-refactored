@@ -18,7 +18,7 @@ class Brand(models.Model):
     )
     is_global = models.BooleanField(default=False)
     brand_name = models.CharField(max_length=255)
-    logo = models.CharField(max_length=255, null=True, blank=True) # URL or path string
+    logo = models.ImageField(upload_to='brands/logos/', null=True, blank=True)
     description = models.TextField(null=True, blank=True)
     priority = models.CharField(max_length=255) # Could be integer for sorting, keeping Char as per your DB
     created_at = models.DateTimeField(auto_now_add=True)

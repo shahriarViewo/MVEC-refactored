@@ -1,12 +1,12 @@
 from rest_framework import serializers
 from .models import Category, Brand, Variation, VariationOption
-from accounts.serializers import ImageSerializer
+# Ensure this import path is correct for your project
+from accounts.serializers import ImageSerializer 
 
 # -----------------------------
 # Category Serializer
 # -----------------------------
 class CategorySerializer(serializers.ModelSerializer):
-    # Recursively serialize children for a tree view
     subcategories = serializers.SerializerMethodField()
 
     class Meta:
@@ -14,7 +14,8 @@ class CategorySerializer(serializers.ModelSerializer):
         fields = ['id', 'category_name', 'icon', 'parent_category', 'subcategories']
 
     def get_subcategories(self, obj):
-        children = obj.subcategories.all()
+        # Sort sub-categories by Newest First (-id)
+        children = obj.subcategories.all().order_by('-id')
         return CategorySerializer(children, many=True).data
 
 
@@ -28,26 +29,22 @@ class BrandSerializer(serializers.ModelSerializer):
 
 
 # -----------------------------
-# Variation Option Serializer (THE MISSING PART)
+# Variation Option Serializer
 # -----------------------------
 class VariationOptionSerializer(serializers.ModelSerializer):
-    # Shows the full image object if a pattern is uploaded
     pattern_image_details = ImageSerializer(source='pattern_image', read_only=True)
-
+    
     class Meta:
         model = VariationOption
-        # Added color_code and pattern_image
-        fields = ['id', 'value', 'color_code', 'pattern_image', 'pattern_image_details']
+        fields = ['id', 'variation', 'value', 'color_code', 'pattern_image', 'pattern_image_details']
 
 
 # -----------------------------
 # Variation Serializer
 # -----------------------------
 class VariationSerializer(serializers.ModelSerializer):
-    # Nested options allow you to see "Size" and ["S", "M", "L"] in one call
     options = VariationOptionSerializer(many=True, read_only=True)
 
     class Meta:
         model = Variation
-        # Added display_mode
         fields = ['id', 'name', 'is_global', 'display_mode', 'vendor_shop', 'options']

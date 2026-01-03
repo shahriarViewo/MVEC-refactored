@@ -2,22 +2,25 @@ from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import Q
-from .models import Category, Variation
-from .serializers import CategorySerializer, VariationSerializer
+from .models import Category, Variation,VariationOption, Brand
+from .serializers import CategorySerializer, VariationSerializer, VariationOptionSerializer, BrandSerializer
 
 class CategoryViewSet(viewsets.ModelViewSet):
     """
-    Standard ViewSet for CRUD operations on Categories.
-    
-    - list (GET): Returns only Root Categories (parent=None). 
-      The serializer handles the recursive 'subcategories' tree.
-    - create (POST): Allows creating root OR sub-categories.
+    - List: Returns only Root Categories (Recursion handles the rest).
+    - Retrieve/Update/Delete: Can access ANY Category (Root or Sub).
     """
-    queryset = Category.objects.filter(parent_category__isnull=True)
     serializer_class = CategorySerializer
-    
-    # In production, change to [permissions.IsAdminUser] for safety
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.AllowAny] 
+
+    def get_queryset(self):
+        # 1. If we are asking for a LIST, only return the main parents (Roots)
+        #    Sorted by Newest First (-id)
+        if self.action == 'list':
+            return Category.objects.filter(parent_category__isnull=True).order_by('-id')
+        
+        # 2. If we are Deleting/Updating/Viewing a specific ID, look through ALL categories
+        return Category.objects.all().order_by('-id')
 
 
 class VariationViewSet(viewsets.ModelViewSet):
@@ -46,3 +49,17 @@ class VariationViewSet(viewsets.ModelViewSet):
             
         # 3. Regular users (shouldn't really access this, but fallback to global)
         return Variation.objects.filter(is_global=True)
+class BrandViewSet(viewsets.ModelViewSet):
+    """
+    Public Endpoint: Returns list of Brands.
+    """
+    queryset = Brand.objects.all()
+    serializer_class = BrandSerializer
+    permission_classes = [permissions.AllowAny]
+class VariationOptionViewSet(viewsets.ModelViewSet):
+    """
+    Allows Admin to add options (S, M, L, Red) to a Variation.
+    """
+    queryset = VariationOption.objects.all()
+    serializer_class = VariationOptionSerializer
+    permission_classes = [permissions.IsAuthenticated]
