@@ -5,14 +5,18 @@ from django.db.models import Q
 from .models import Category, Variation
 from .serializers import CategorySerializer, VariationSerializer
 
-class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
+class CategoryViewSet(viewsets.ModelViewSet):
     """
-    Public Endpoint: Returns the Category Tree.
-    We only fetch 'root' categories (parent=None). 
-    The Serializer recursively fetches children.
+    Standard ViewSet for CRUD operations on Categories.
+    
+    - list (GET): Returns only Root Categories (parent=None). 
+      The serializer handles the recursive 'subcategories' tree.
+    - create (POST): Allows creating root OR sub-categories.
     """
     queryset = Category.objects.filter(parent_category__isnull=True)
     serializer_class = CategorySerializer
+    
+    # In production, change to [permissions.IsAdminUser] for safety
     permission_classes = [permissions.AllowAny]
 
 
